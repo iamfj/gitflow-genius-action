@@ -1,0 +1,37 @@
+name: 'Gitflow Genius Action'
+description: 'Automate your GitFlow: feature branching, release management, and more for a productive repo lifecycle.'
+author: 'Fabian Jocks'
+
+branding:
+  icon: 'git-merge'
+  color: 'gray-dark'
+
+runs:
+  using: "node20"
+  main: "dist/index.js"
+
+inputs:
+  strict: 
+    description: 'With strict mode enabled, the action will fail if the head branch name does not match the given patterns for hotfix, releases or features.'
+    required: true
+    default: 'false'
+  version_increment:
+    description: 'The type of version increment to apply. Choose between major, minor, or patch.'
+    required: true
+    default: "patch"
+  main_branch:
+    description: 'Main branch used for stable production versions.'
+    required: true
+    default: "main"
+  develop_branch:
+    description: 'Branch used for ongoing development.'
+    required: true
+    default: "develop"
+  release_branch_prefix:
+    description: 'Prefix for branches dedicated to preparing new releases.'
+    required: true
+    default: "release/v"
+  hotfix_branch_prefix:
+    description: 'Prefix for branches dedicated to urgent production fixes.'
+    required: true
+    default: "hotfix/"

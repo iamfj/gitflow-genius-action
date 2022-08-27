@@ -1,0 +1,35 @@
+{
+  "name": "Node.js",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:bullseye",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "postCreateCommand": ". ${NVM_DIR}/nvm.sh && nvm install && npm install -g npm@10.2.4 && npm i",
+  "postAttachCommand": ". ${NVM_DIR}/nvm.sh && nvm use && git config --global diff.ool ...",
+  "postStartCommand": "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename} && devcontainer-info",
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/workspaces/${localWorkspaceFolderBasename}/node_modules/.bin",
+    "NVM_DIR": "/usr/local/share/nvm"
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind,consistency=cached"
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    },
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode-remote.remote-containers",
+        "dbaeumer.vscode-eslint",
+        "GitHub.copilot",
+        "oderwat.indent-rainbow",
+        "esbenp.prettier-vscode",
+        "eamodio.gitlens",
+        "github.vscode-github-actions",
+        "EditorConfig.EditorConfig",
+        "vitest.explorer"
+      ]
+    }
+  }
+}

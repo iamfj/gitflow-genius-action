@@ -1,0 +1,5 @@
+{
+  "**/*.ts": "tsc-files --noEmit",
+  "*.{json,css,scss,md}": "prettier --ignore-path .gitignore",
+  "**/*.{ts,js}": "eslint --ignore-path .gitignore --ext .js,.ts"
+}

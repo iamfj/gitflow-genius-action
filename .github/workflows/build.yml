@@ -1,0 +1,46 @@
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - v*
+
+name: Build
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build dist
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+      - name: Setup git
+        run: |
+          git fetch --no-tags --prune --depth=1 origin +refs/heads/*:refs/remotes/origin/*
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version-file: .nvmrc
+          cache-dependency-path: package-lock.json
+      - name: Install deps
+        run: npm ci --ignore-scripts
+      - name: Rebuild dist
+        run: npm run build
+      - name: Commit dist
+        run: |
+          git add -A
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit"
+          else
+            git commit -m "ci(build): rebuild dist [skip ci]"
+          fi
+      - name: Push dist
+        run: git push

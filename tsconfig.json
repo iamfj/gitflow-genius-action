@@ -1,0 +1,17 @@
+{
+  "extends": "@tsconfig/node20/tsconfig.json",
+  "compilerOptions": {
+    "types": ["vitest/globals"],
+    "lib": ["es2022", "DOM"],
+    "outDir": "dist",
+    "rootDir": ".",
+    "baseUrl": "src",
+    "strict": true,
+    "allowJs": false,
+    "esModuleInterop": true,
+    "paths": {
+      "@/*": ["./*"],
+    },
+  },
+  "include": ["./src/**/*"],
+}

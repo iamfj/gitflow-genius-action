@@ -1,0 +1,32 @@
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+name: Checks
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version-file: .nvmrc
+          cache-dependency-path: package-lock.json
+      - name: Install deps
+        run: npm install --ignore-scripts
+      - name: Lint
+        run: npx vitest --coverage.enabled true
+      - name: Coverage
+        if: always() 
+        uses: davelosert/vitest-coverage-report-action@v2

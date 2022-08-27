@@ -1,0 +1,68 @@
+{
+  "name": "gitflow-genius-action",
+  "version": "0.1.0",
+  "description": "Gitflow Genius Action simplifies and automates your repository's GitFlow workflow, enhancing the development lifecycle with automated branching, merging, and release management. This tool is designed to boost productivity, enforce standard workflow practices, and ensure error-free operations for continuous integration and delivery.",
+  "author": "Fabian Jocks <dev@jocks.io>",
+  "license": "MIT",
+  "homepage": "https://github.com/iamfj/gitflow-genius-action#readme",
+  "bugs": {
+    "url": "https://github.com/iamfj/gitflow-genius-action/issues"
+  },
+  "main": "dist/index.js",
+  "packageManager": "npm@10.2.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "test": "vitest",
+    "lint": "eslint --ignore-path .gitignore --ext .js,.ts src",
+    "fix": "eslint --ignore-path .gitignore --ext .js,.ts src --fix",
+    "build": "rimraf ./dist && ncc build src/index.ts -o dist --minify --license licenses.txt",
+    "commitlint": "commitlint --edit",
+    "prepare": "husky",
+    "postinstall": "patch-package"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamfj/gitflow-genius-action.git"
+  },
+  "dependencies": {
+    "@actions/core": "1.10.1",
+    "@actions/github": "6.0.0",
+    "@octokit/rest": "20.0.2",
+    "semver": "7.6.0"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "19.0.3",
+    "@commitlint/config-conventional": "19.0.3",
+    "@semantic-release/changelog": "6.0.3",
+    "@semantic-release/commit-analyzer": "11.1.0",
+    "@semantic-release/git": "10.0.1",
+    "@semantic-release/npm": "11.0.3",
+    "@semantic-release/release-notes-generator": "12.1.0",
+    "@trivago/prettier-plugin-sort-imports": "4.3.0",
+    "@tsconfig/node20": "20.1.2",
+    "@types/node": "20.11.24",
+    "@types/semver": "7.5.8",
+    "@typescript-eslint/eslint-plugin": "7.1.1",
+    "@typescript-eslint/parser": "7.1.1",
+    "@vercel/ncc": "0.38.1",
+    "eslint": "8.57.0",
+    "eslint-config-airbnb-base": "15.0.0",
+    "eslint-config-airbnb-typescript": "18.0.0",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-import-resolver-typescript": "3.6.1",
+    "eslint-plugin-import": "2.29.1",
+    "eslint-plugin-prettier": "5.1.3",
+    "husky": "9.0.11",
+    "lint-staged": "15.2.2",
+    "patch-package": "8.0.0",
+    "prettier": "3.2.5",
+    "rimraf": "5.0.5",
+    "semantic-release": "23.0.2",
+    "tsc-files": "1.1.4",
+    "tsx": "4.7.1",
+    "vitest": "1.3.1"
+  }
+}

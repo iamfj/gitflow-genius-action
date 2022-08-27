@@ -1,0 +1,45 @@
+{
+  "git.autofetch": true,
+  "git.allowForcePush": true,
+  "git.useForcePushWithLease": true,
+  "git.showActionButton": {
+    "commit": true,
+    "publish": true,
+    "sync": false
+  },
+  "git.branchProtection": [
+    "develop",
+    "main"
+  ],
+  "npm.packageManager": "npm",
+  "gitlens.codeLens.authors.enabled": true,
+  "gitlens.codeLens.recentChange.enabled": true,
+  "gitlens.statusBar.enabled": true,
+  "gitlens.graph.layout": "panel",
+  "gitlens.graph.dimMergeCommits": true,
+  "gitlens.graph.showRemoteNames": true,
+  "gitlens.views.commitDetails.files.layout": "tree",
+  "javascript.preferences.importModuleSpecifier": "non-relative",
+  "javascript.preferences.importModuleSpecifierEnding": "minimal",
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "typescript.preferences.importModuleSpecifierEnding": "minimal",
+  "prettier.configPath": ".prettierrc",
+  "prettier.ignorePath": ".gitignore",
+  "prettier.singleQuote": true,
+  "eslint.ignoreUntitled": true,
+  "eslint.codeActionsOnSave.mode": "all",
+  "eslint.lintTask.enable": false,
+  "eslint.onIgnoredFiles": "warn",
+  "eslint.validate": [
+    "javascript", 
+    "typescript"
+  ],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "files.associations": {
+    ".commitlintrc": "yaml",
+    ".{lintstagedrc,prettierrc}": "jsonc",
+    ".releaserc": "javascript",
+  },
+}
