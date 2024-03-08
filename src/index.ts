@@ -3,7 +3,7 @@ import * as github from '@actions/github';
 import assert from 'assert';
 
 import { type Config, getConfig } from '@/utils/config';
-import { getPullRequest } from '@/utils/git';
+import { getPull } from '@/utils/git';
 import { error, log } from '@/utils/logger';
 import { onDispatch } from '@/workflows/dispatch';
 import { onPullRequestMerged, onPullRequestSynchronize } from '@/workflows/pullRequest';
@@ -33,7 +33,7 @@ const main = async (config: Config) => {
     }
 
     // Fetch pull request data
-    const pullRequest = await getPullRequest(github.context.payload.pull_request.number, config);
+    const pullRequest = await getPull(github.context.payload.pull_request.number, config);
 
     // Execute the onPullRequestClosed workflow
     return onPullRequestMerged(pullRequest, config);
@@ -50,7 +50,7 @@ const main = async (config: Config) => {
     assert(github.context.payload.pull_request, 'pull request is not defined');
 
     // Fetch pull request data
-    const pullRequest = await getPullRequest(github.context.payload.pull_request.number, config);
+    const pullRequest = await getPull(github.context.payload.pull_request.number, config);
 
     // Execute the onPullRequestSynchronize workflow
     return onPullRequestSynchronize(pullRequest, config);

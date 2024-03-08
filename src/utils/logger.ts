@@ -72,3 +72,10 @@ export const warn = (...messages: (string | object)[]): void => {
 export const error = (...messages: (string | object)[]): void => {
   console.error(format(...messages));
 };
+
+export default {
+  log,
+  info,
+  warn,
+  error,
+};

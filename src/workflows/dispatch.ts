@@ -6,12 +6,12 @@ import {
   addLabels,
   branchExists,
   createLabel,
-  createPullRequest,
+  createPull,
   createRef,
+  developBranchSha,
   findLabel,
-  findPullRequests,
-  getDevelopBranchSha,
-  getLatestRelease,
+  findPulls,
+  latestRelease,
 } from '@/utils/git';
 import { error, log } from '@/utils/logger';
 
@@ -33,35 +33,35 @@ export const onDispatch = async (config: Config) => {
     developBranch,
     mainBranch,
     releaseBranchPrefix,
-    releaseLabel: inputReleaseLabel,
+    releaseLabel,
     releaseLabelColor,
   } = config;
 
   // Create the release label if it is not present
-  log(`on-dispatch: detect or create release label "${inputReleaseLabel}"...`);
-  let releaseLabel = await findLabel(inputReleaseLabel, config);
-  if (releaseLabel) {
-    log(`on-dispatch: label ${inputReleaseLabel} already exists! Skipped!`);
+  log(`on-dispatch: detect or create release label "${releaseLabel}"...`);
+  let release = await findLabel(releaseLabel, config);
+  if (release) {
+    log(`on-dispatch: label ${releaseLabel} already exists! Skipped!`);
   } else {
-    log(`on-dispatch: creating label "${inputReleaseLabel}"...`);
-    releaseLabel = await createLabel(inputReleaseLabel, releaseLabelColor, config);
-    log(`on-dispatch: label "${inputReleaseLabel}" created!`, releaseLabel);
+    log(`on-dispatch: creating label "${releaseLabel}"...`);
+    release = await createLabel(releaseLabel, releaseLabelColor, config);
+    log(`on-dispatch: label "${releaseLabel}" created!`, release);
   }
 
   // Assert release label name
-  assert(releaseLabel, `release label ${inputReleaseLabel} not found!`);
-  const releaseLabelName = releaseLabel.name;
+  assert(release, `release label ${releaseLabel} not found!`);
+  const releaseLabelName = release.name;
 
   // Get latest release
   log(`on-dispatch: detecting latest release version...`);
-  const latestRelease = await getLatestRelease(config);
+  const latest = await latestRelease(config);
   log(`on-dispatch: latest release version detected! (v${latestRelease})`);
 
   // Sanitize the latest release version
   log(
     `on-dispatch: increment release version from v${latestRelease} with ${versionIncrement} version`,
   );
-  const version = clean(inc(latestRelease, versionIncrement) || initialVersion);
+  const version = clean(inc(latest, versionIncrement) || initialVersion);
   if (!version) {
     error(`on-dispatch: failed to increment version from v${latestRelease}`);
     return;
@@ -70,7 +70,7 @@ export const onDispatch = async (config: Config) => {
 
   // Create release branch
   log(`on-dispatch: fetching develop branch sha`);
-  const developSha = await getDevelopBranchSha(config);
+  const developSha = await developBranchSha(config);
   log(`on-dispatch: creating release branch for v${version} from ${developBranch} (${developSha})`);
   const releaseBranch = `${releaseBranchPrefix}${version}`;
   log(`on-dispatch: release branch name generated ${releaseBranch}`);
@@ -92,7 +92,7 @@ export const onDispatch = async (config: Config) => {
 
   // List all pull requests with head releaseBranch and base mainBranch
   log(`on-dispatch: fetching pull requests from ${releaseBranch} to ${mainBranch}`);
-  const pulls = await findPullRequests({ base: mainBranch, head: releaseBranch }, config);
+  const pulls = await findPulls({ base: mainBranch, head: releaseBranch }, config);
 
   // Check if release pull request already exists
   let pull;
@@ -106,7 +106,7 @@ export const onDispatch = async (config: Config) => {
   // Create release pull request
   if (!pull) {
     log(`on-dispatch: creating pull request from ${developBranch} to ${mainBranch}`);
-    pull = await createPullRequest(
+    pull = await createPull(
       {
         title: `Release v${version}`,
         body: `Release v${version}`, // ToDo: Add release notes

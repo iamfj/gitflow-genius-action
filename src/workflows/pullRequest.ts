@@ -4,13 +4,13 @@ import { clean, inc } from 'semver';
 import { Config } from '@/utils/config';
 import {
   compareCommits,
-  createPullRequest,
+  createPull,
   createRef,
   createRelease,
   createTag,
-  determinePullRequestType,
-  getLatestRelease,
+  latestRelease,
   mergeBranch,
+  pullType,
 } from '@/utils/git';
 import { error, log } from '@/utils/logger';
 
@@ -28,7 +28,13 @@ export const onPullRequestMerged = async (
 ) => {
   // Determine the type of the pull request
   log('on-pull-merge: determine pull request type...');
-  const pullRequestType = determinePullRequestType(pullRequest, config);
+  const pullRequestType = pullType(
+    {
+      base: pullRequest.base.ref,
+      head: pullRequest.head.ref,
+    },
+    config,
+  );
   if (!pullRequestType) {
     throw new Error('Could not determine pull request type');
   }
@@ -42,7 +48,7 @@ export const onPullRequestMerged = async (
 
   // Get the latest release and develop branch SHA
   const { initialVersion, mainBranch, developBranch } = config;
-  const latestRelease = await getLatestRelease(config);
+  const latest = await latestRelease(config);
 
   // If the pull request type is a hotfix, reintegrate the main branch into the develop branch
   if (pullRequestType === 'hotfix' || pullRequestType === 'release') {
@@ -76,7 +82,7 @@ export const onPullRequestMerged = async (
 
       // Create a pull request to reintegrate
       log(`on-pull-merge: creating pull to reintegrate ${mainBranch} into ${developBranch}...`);
-      const pull = await createPullRequest(
+      const pull = await createPull(
         {
           title: `Reintegrate ${mainBranch} into ${developBranch}`,
           body: `This pull request reintegrates the ${mainBranch} branch into the ${developBranch} branch.`,
@@ -93,7 +99,7 @@ export const onPullRequestMerged = async (
     // If the pull request type is a hotfix, increment the latest release version
     if (pullRequestType === 'hotfix') {
       log('on-pull-merge: incrementing version for hotfix...');
-      version = clean(inc(latestRelease, 'prerelease', 'HOTFIX') || initialVersion);
+      version = clean(inc(latest, 'prerelease', 'HOTFIX') || initialVersion);
 
       // Check if the version could be sanitized from the latest release
       if (!version) {

@@ -6,41 +6,43 @@ import { type ValuesType } from 'utility-types';
 import { Config } from '@/utils/config';
 import { log } from '@/utils/logger';
 
-type PullRequestType = 'release' | 'hotfix' | 'feature';
+type PullType = 'release' | 'hotfix' | 'feature';
 
 interface Basehead {
   base: string;
   head: string;
 }
 
-export const determinePullRequestType = (
-  pullRequest: RestEndpointMethodTypes['pulls']['get']['response']['data'],
-  { mainBranch, developBranch, releaseBranchPrefix, hotfixBranchPrefix, strict }: Config,
-): PullRequestType | undefined => {
+export const pullType = (
+  { base, head }: Basehead,
+  {
+    mainBranch,
+    developBranch,
+    releaseBranchPrefix,
+    hotfixBranchPrefix,
+    strict,
+  }: Pick<
+    Config,
+    'mainBranch' | 'developBranch' | 'releaseBranchPrefix' | 'hotfixBranchPrefix' | 'strict'
+  >,
+): PullType | undefined => {
   log('get-pull-request-type: determine pull request type...');
-  const headBranch = pullRequest.head.ref;
-  const baseBranch = pullRequest.base.ref;
-
-  // Log the head and base branch
-  log(`get-pull-request-type: head branch "${headBranch}"`);
-  log(`get-pull-request-type: base branch "${baseBranch}"`);
+  log(`get-pull-request-type: base branch "${base}"`);
+  log(`get-pull-request-type: head branch "${head}"`);
 
   // If the base branch is the main branch and the head branch is a release branch
-  if (baseBranch === mainBranch && headBranch.startsWith(releaseBranchPrefix)) {
+  if (base === mainBranch && head.startsWith(releaseBranchPrefix)) {
     log('get-pull-request-type: pull request type is release');
     return 'release';
   }
 
   // If the base branch is the main branch and the head branch is a hotfix branch
-  if (
-    (baseBranch === mainBranch && headBranch.startsWith(hotfixBranchPrefix) && !strict) ||
-    (baseBranch === mainBranch && !headBranch.startsWith(releaseBranchPrefix) && strict)
-  ) {
+  if (base === mainBranch && (!strict || (strict && head.startsWith(hotfixBranchPrefix)))) {
     log('get-pull-request-type: pull request type is hotfix');
     return 'hotfix';
   }
 
-  if (baseBranch === developBranch) {
+  if (base === developBranch) {
     log('get-pull-request-type: pull request type is feature or bugfix');
     return 'feature'; // Or bugfix but in this workflow we don't care
   }
@@ -92,7 +94,7 @@ export const createTag = async (
   return data;
 };
 
-export const getDevelopBranchSha = async ({ octokit, context, developBranch }: Config) => {
+export const developBranchSha = async ({ octokit, context, developBranch }: Config) => {
   const { data } = await octokit.rest.repos.getBranch({
     ...context.repo,
     branch: developBranch,
@@ -101,7 +103,7 @@ export const getDevelopBranchSha = async ({ octokit, context, developBranch }: C
   return data.commit.sha;
 };
 
-export const getLatestRelease = async ({ octokit, context, initialVersion }: Config) => {
+export const latestRelease = async ({ octokit, context, initialVersion }: Config) => {
   log('get-release: fetching latest release from github');
 
   const { data } = await octokit.rest.repos
@@ -188,7 +190,7 @@ export const createRelease = async (tag: string, { octokit, context }: Config) =
   return data;
 };
 
-export const findPullRequests = async (
+export const findPulls = async (
   { base, head }: Basehead,
   { octokit, context }: Config,
 ): Promise<RestEndpointMethodTypes['pulls']['list']['response']['data']> => {
@@ -215,7 +217,7 @@ export const addLabels = async (
   return data;
 };
 
-export const createPullRequest = async (
+export const createPull = async (
   params: Pick<RestEndpointMethodTypes['pulls']['create']['parameters'], 'title' | 'body'>,
   { base, head }: Basehead,
   { octokit, context }: Config,
@@ -230,7 +232,7 @@ export const createPullRequest = async (
   return data;
 };
 
-export const getPullRequest = async (
+export const getPull = async (
   pull_number: number,
   { octokit, context }: Config,
 ): Promise<RestEndpointMethodTypes['pulls']['get']['response']['data']> => {
