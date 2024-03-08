@@ -1,42 +1,53 @@
 import { RestEndpointMethodTypes } from '@octokit/rest';
+import { warn } from 'console';
 import { clean } from 'semver';
+import { type ValuesType } from 'utility-types';
 
 import { Config } from '@/utils/config';
 import { log } from '@/utils/logger';
 
 type PullRequestType = 'release' | 'hotfix' | 'feature';
 
-export const getPullRequestType = (
+interface Basehead {
+  base: string;
+  head: string;
+}
+
+export const determinePullRequestType = (
   pullRequest: RestEndpointMethodTypes['pulls']['get']['response']['data'],
   { mainBranch, developBranch, releaseBranchPrefix, hotfixBranchPrefix }: Config,
 ): PullRequestType | undefined => {
+  log('get-pull-request-type: determine pull request type...');
   const headBranch = pullRequest.head.ref;
   const baseBranch = pullRequest.base.ref;
 
-  const isHeadRelease = headBranch.startsWith(`${releaseBranchPrefix}/`);
-  const isHeadHotfix = headBranch.startsWith(`${hotfixBranchPrefix}/`);
+  const isHeadRelease = headBranch.startsWith(releaseBranchPrefix);
+  const isHeadHotfix = headBranch.startsWith(hotfixBranchPrefix);
+
+  // Log the head and base branch
+  log('get-pull-request-type: head branch', headBranch);
+  log('get-pull-request-type: base branch', baseBranch);
 
   // If the base branch is the main branch and the head branch is a release branch
   if (baseBranch === mainBranch && isHeadRelease) {
+    log('get-pull-request-type: pull request type is release');
     return 'release';
   }
 
   // If the base branch is the main branch and the head branch is a hotfix branch
   if (baseBranch === mainBranch && isHeadHotfix) {
+    log('get-pull-request-type: pull request type is hotfix');
     return 'hotfix';
   }
 
   if (baseBranch === developBranch) {
+    log('get-pull-request-type: pull request type is feature or bugfix');
     return 'feature'; // Or bugfix but in this workflow we don't care
   }
 
+  warn('get-pull-request-type: could not determine pull request type');
   return undefined;
 };
-
-interface Basehead {
-  base: string;
-  head: string;
-}
 
 export const compareCommits = async (
   { base, head }: Basehead,
@@ -52,41 +63,17 @@ export const compareCommits = async (
   return data.status;
 };
 
-export const reintegrateBranch = async (basehead: Basehead, config: Config) => {
-  const compareStatus = await compareCommits(basehead, config);
+export const mergeBranch = async (
+  { base, head }: Basehead,
+  { octokit, context }: Config,
+): Promise<RestEndpointMethodTypes['repos']['merge']['response']['data']> => {
+  const { data } = await octokit.rest.repos.merge({
+    ...context.repo,
+    base,
+    head,
+  });
 
-  if (compareStatus === 'identical') {
-    log('reintegrate-branch: branches are identical, nothing to do');
-    return;
-  }
-
-  const { octokit } = config;
-  const { repo } = config.context;
-  const { base, head } = basehead;
-
-  try {
-    await octokit.rest.repos.merge({
-      ...repo,
-      base,
-      head,
-    });
-
-    log(`reintegrate-branch: successfully reintegrate changes from ${head} to ${base}`);
-  } catch (error) {
-    log(
-      `reintegrate-branch: failed to reintegrate changes from ${head} to ${base} automatically. Creating a pull request...`,
-    );
-
-    await octokit.rest.pulls.create({
-      ...repo,
-      base,
-      head,
-      title: `Merge ${head} branch into ${base}`,
-      body: ``, // ToDo: Add PR description
-    });
-
-    log(`reintegrate-branch: pull request created to reintegrate changes from ${head} to ${base}`);
-  }
+  return data;
 };
 
 export const createTag = async (
@@ -103,15 +90,6 @@ export const createTag = async (
   });
 
   return data;
-};
-
-export const getMainBranchSha = async ({ octokit, context, mainBranch }: Config) => {
-  const { data } = await octokit.rest.repos.getBranch({
-    ...context.repo,
-    branch: mainBranch,
-  });
-
-  return data.commit.sha;
 };
 
 export const getDevelopBranchSha = async ({ octokit, context, developBranch }: Config) => {
@@ -147,58 +125,107 @@ export const getLatestRelease = async ({ octokit, context, initialVersion }: Con
   return version;
 };
 
-export const createReleaseLabel = async ({ octokit, context }: Config) => {
-  log('create-release-label: creating release label if not exists');
+export const findLabel = async (
+  label: string,
+  { octokit, context }: Config,
+): Promise<
+  ValuesType<RestEndpointMethodTypes['issues']['listLabelsForRepo']['response']['data']> | undefined
+> => {
+  // Find label in repo
+  const { data } = await octokit.rest.issues.listLabelsForRepo({
+    ...context.repo,
+  });
 
-  await octokit.rest.issues
-    .createLabel({
-      ...context.repo,
-      name: 'release',
-      color: '0366d6',
-    })
-    .catch(() => {
-      log('create-release-label: label already exists. Skipping...');
-    });
+  return data.find((l) => l.name === label);
 };
 
-export const createReleaseBranch = async (
-  version: string,
-  base: Basehead['base'],
-  { octokit, context, releaseBranchPrefix }: Config,
-): Promise<RestEndpointMethodTypes['git']['createRef']['response']['data']> => {
-  const { data } = await octokit.rest.git.createRef({
+export const createLabel = async (label: string, color: string, { octokit, context }: Config) => {
+  const { data } = await octokit.rest.issues.createLabel({
     ...context.repo,
-    ref: `refs/heads/${releaseBranchPrefix}${version}`,
-    sha: base,
+    name: 'release',
+    color: '0366d6',
   });
 
   return data;
 };
 
-export const createReleasePullRequest = async (
-  version: string,
+export const branchExists = async (
+  branch: string,
+  { octokit, context }: Config,
+): Promise<RestEndpointMethodTypes['repos']['getBranch']['response']['data'] | undefined> => {
+  try {
+    const { data } = await octokit.rest.repos.getBranch({
+      ...context.repo,
+      branch,
+    });
+
+    return data;
+  } catch (error) {
+    return undefined;
+  }
+};
+
+export const createRef = async (
+  ref: string,
+  sha: Basehead['base'],
+  { octokit, context }: Config,
+): Promise<RestEndpointMethodTypes['git']['createRef']['response']['data']> => {
+  const { data } = await octokit.rest.git.createRef({
+    ...context.repo,
+    ref,
+    sha,
+  });
+
+  return data;
+};
+
+export const createRelease = async (tag: string, { octokit, context }: Config) => {
+  const { data } = await octokit.rest.repos.createRelease({
+    ...context.repo,
+    tag_name: tag,
+  });
+
+  return data;
+};
+
+export const findPullRequests = async (
   { base, head }: Basehead,
   { octokit, context }: Config,
-): Promise<RestEndpointMethodTypes['pulls']['create']['response']['data']> => {
-  log('create-release-pr: creating release pull request...');
-
-  const { data } = await octokit.rest.pulls.create({
+): Promise<RestEndpointMethodTypes['pulls']['list']['response']['data']> => {
+  const { data } = await octokit.rest.pulls.list({
     ...context.repo,
-    title: `Release ${version}`,
     head,
     base,
   });
 
-  log('create-release-pr: release pull request created!');
+  return data;
+};
 
-  // Add label to the pull request
-  await octokit.rest.issues.addLabels({
+export const addLabels = async (
+  labels: string[],
+  issueNumber: RestEndpointMethodTypes['issues']['addLabels']['parameters']['issue_number'],
+  { octokit, context }: Config,
+): Promise<RestEndpointMethodTypes['issues']['addLabels']['response']['data']> => {
+  const { data } = await octokit.rest.issues.addLabels({
     ...context.repo,
-    issue_number: data.number,
-    labels: ['release'],
+    issue_number: issueNumber,
+    labels,
   });
 
-  log('create-release-pr: release label attached to pull request!');
+  return data;
+};
+
+export const createPullRequest = async (
+  params: Pick<RestEndpointMethodTypes['pulls']['create']['parameters'], 'title' | 'body'>,
+  { base, head }: Basehead,
+  { octokit, context }: Config,
+): Promise<RestEndpointMethodTypes['pulls']['create']['response']['data']> => {
+  const { data } = await octokit.rest.pulls.create({
+    ...context.repo,
+    ...params,
+    head,
+    base,
+  });
 
   return data;
 };

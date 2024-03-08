@@ -1,13 +1,17 @@
+import assert from 'assert';
 import { clean, inc } from 'semver';
 
 import { Config } from '@/utils/config';
 import {
-  createReleaseBranch,
-  createReleaseLabel,
-  createReleasePullRequest,
+  addLabels,
+  branchExists,
+  createLabel,
+  createPullRequest,
+  createRef,
+  findLabel,
+  findPullRequests,
   getDevelopBranchSha,
   getLatestRelease,
-  getMainBranchSha,
 } from '@/utils/git';
 import { error, log } from '@/utils/logger';
 
@@ -23,11 +27,30 @@ import { error, log } from '@/utils/logger';
  * @param {Config} config - The configuration object for the release process.
  */
 export const onDispatch = async (config: Config) => {
-  // ToDo: Check if a release pull request is already open, fail if it is
+  const {
+    versionIncrement,
+    initialVersion,
+    developBranch,
+    mainBranch,
+    releaseBranchPrefix,
+    releaseLabel: inputReleaseLabel,
+    releaseLabelColor,
+  } = config;
 
   // Create the release label if it is not present
-  log(`on-dispatch: create release label if not exists`);
-  await createReleaseLabel(config);
+  log(`on-dispatch: detect or create release label "${inputReleaseLabel}"...`);
+  let releaseLabel = await findLabel(inputReleaseLabel, config);
+  if (releaseLabel) {
+    log(`on-dispatch: label ${inputReleaseLabel} already exists! Skipped!`);
+  } else {
+    log(`on-dispatch: creating label "${inputReleaseLabel}"...`);
+    releaseLabel = await createLabel(inputReleaseLabel, releaseLabelColor, config);
+    log(`on-dispatch: label "${inputReleaseLabel}" created!`, releaseLabel);
+  }
+
+  // Assert release label name
+  assert(releaseLabel, `release label ${inputReleaseLabel} not found!`);
+  const releaseLabelName = releaseLabel.name;
 
   // Get latest release
   log(`on-dispatch: detecting latest release version...`);
@@ -35,8 +58,10 @@ export const onDispatch = async (config: Config) => {
   log(`on-dispatch: latest release version detected! (v${latestRelease})`);
 
   // Sanitize the latest release version
-  log(`on-dispatch: increment release version from v${latestRelease} with patch version`);
-  const version = clean(inc(latestRelease, config.versionIncrement) || config.initialVersion);
+  log(
+    `on-dispatch: increment release version from v${latestRelease} with ${versionIncrement} version`,
+  );
+  const version = clean(inc(latestRelease, versionIncrement) || initialVersion);
   if (!version) {
     error(`on-dispatch: failed to increment version from v${latestRelease}`);
     return;
@@ -44,25 +69,71 @@ export const onDispatch = async (config: Config) => {
   log(`on-dispatch: release version was incremented from v${latestRelease} to v${version})`);
 
   // Create release branch
-  const { developBranch, mainBranch } = config;
-  log(`on-dispatch: fetching main branch sha`);
-  const mainSha = await getMainBranchSha(config);
   log(`on-dispatch: fetching develop branch sha`);
   const developSha = await getDevelopBranchSha(config);
   log(`on-dispatch: creating release branch for v${version} from ${developBranch} (${developSha})`);
-  const releaseBranch = await createReleaseBranch(version, developSha, config);
+  const releaseBranch = `${releaseBranchPrefix}${version}`;
+  log(`on-dispatch: release branch name generated ${releaseBranch}`);
 
-  // Create pull request with label release
-  log(
-    `on-dispatch: creating pull request for v${version} from ${developBranch} (${developSha}) to ${mainBranch} (${mainSha})`,
-  );
-  const releasePullRequest = await createReleasePullRequest(
-    version,
-    {
-      head: releaseBranch.ref,
-      base: mainSha,
-    },
-    config,
-  );
-  log(`on-dispatch: release pull request for v${version} created!`, releasePullRequest);
+  // Check if release branch already exists
+  log(`on-dispatch: checking if release branch ${releaseBranch} exists...`);
+  const exists = await branchExists(releaseBranch, config);
+  if (exists) {
+    log(`on-dispatch: release branch ${releaseBranch} already exists. Skipped!`, exists);
+  } else {
+    // Create release branch
+    log(`on-dispatch: release branch ${releaseBranch} does not exist.`);
+    log(
+      `on-dispatch: creating release branch ${releaseBranch} from ${developBranch} (${developSha})`,
+    );
+    const ref = await createRef(`refs/heads/${releaseBranch}`, developSha, config);
+    log(`on-dispatch: release branch for v${version} created! (${releaseBranch})`, ref);
+  }
+
+  // List all pull requests with head releaseBranch and base mainBranch
+  log(`on-dispatch: fetching pull requests from ${releaseBranch} to ${mainBranch}`);
+  const pulls = await findPullRequests({ base: mainBranch, head: releaseBranch }, config);
+
+  // Check if release pull request already exists
+  let pull;
+  if (pulls.length > 0) {
+    pull = pulls[0];
+    log(`on-dispatch: release pull request #${pull.number} already exists! Skipped!`, pull);
+  } else {
+    log(`on-dispatch: no release pull request for v${version} found!`);
+  }
+
+  // Create release pull request
+  if (!pull) {
+    log(`on-dispatch: creating pull request from ${developBranch} to ${mainBranch}`);
+    pull = await createPullRequest(
+      {
+        title: `Release v${version}`,
+        body: `Release v${version}`, // ToDo: Add release notes
+      },
+      {
+        head: releaseBranch,
+        base: mainBranch,
+      },
+      config,
+    );
+    log(`on-dispatch: release pull request for v${version} created!`, pull);
+  }
+
+  // Check if pull request is available
+  if (!pull) {
+    throw new Error(`release pull request for v${version} not found!`);
+  }
+
+  // Add release label to existing pull request
+  if (pull.labels.find((pullLabel) => pullLabel.name === releaseLabelName)) {
+    log(`on-dispatch: ${releaseLabelName} label exists for pull request #${pull.number}`);
+  } else {
+    log(`on-dispatch: adding ${releaseLabelName} label to pull request #${pull.number}`);
+    const label = await addLabels([releaseLabelName], pull.number, config);
+    log(`on-dispatch: ${releaseLabelName} label added to pull request #${pull.number}`, label);
+  }
+
+  // Log dispatch completion
+  log(`on-dispatch: release process completed for v${version}`);
 };

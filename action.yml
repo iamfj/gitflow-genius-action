@@ -35,3 +35,11 @@ inputs:
     description: 'Prefix for branches dedicated to urgent production fixes.'
     required: true
     default: "hotfix/"
+  release_label:
+    description: 'Label for the release version.'
+    required: true
+    default: "release"
+  release_label_color:
+    description: 'Color for the release version label.'
+    required: true
+    default: "#0366d6"

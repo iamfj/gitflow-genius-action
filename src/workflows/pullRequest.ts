@@ -1,17 +1,18 @@
 import { RestEndpointMethodTypes } from '@octokit/rest';
-import { log } from 'console';
 import { clean, inc } from 'semver';
 
 import { Config } from '@/utils/config';
 import {
+  compareCommits,
+  createPullRequest,
+  createRef,
+  createRelease,
   createTag,
-  getDevelopBranchSha,
+  determinePullRequestType,
   getLatestRelease,
-  getMainBranchSha,
-  getPullRequestType,
-  reintegrateBranch,
+  mergeBranch,
 } from '@/utils/git';
-import { error } from '@/utils/logger';
+import { error, log } from '@/utils/logger';
 
 /**
  * Handles the logic after a pull request is merged.
@@ -25,73 +26,117 @@ export const onPullRequestMerged = async (
   pullRequest: RestEndpointMethodTypes['pulls']['get']['response']['data'],
   config: Config,
 ) => {
+  // Determine the type of the pull request
   log('on-pull-merge: determine pull request type...');
-  const pullRequestType = getPullRequestType(pullRequest, config);
+  const pullRequestType = determinePullRequestType(pullRequest, config);
   if (!pullRequestType) {
-    // If the pull request type is not defined, exit the workflow
-    log('on-pull-merge: could not determine pull request type. Exiting...');
-    return;
+    throw new Error('Could not determine pull request type');
   }
   log(`on-pull-merge: pull request type detected: ${pullRequestType}`);
 
+  // If the pull request type is a feature, exit the workflow
   if (pullRequestType === 'feature') {
-    // If the pull request type is a feature, exit the workflow
     log('on-pull-merge: branch merged to develop, nothing to do');
     return;
   }
 
   // Get the latest release and develop branch SHA
-  const { initialVersion } = config;
+  const { initialVersion, mainBranch, developBranch } = config;
   const latestRelease = await getLatestRelease(config);
-  const mainSha = await getMainBranchSha(config);
-  const developSha = await getDevelopBranchSha(config);
 
   // If the pull request type is a hotfix, reintegrate the main branch into the develop branch
   if (pullRequestType === 'hotfix' || pullRequestType === 'release') {
     let version;
 
-    // Reintegrate the main branch into the develop branch
-    log('on-pull-merge: reintegrate main branch into develop branch...');
-    await reintegrateBranch(
-      {
-        base: developSha,
-        head: mainSha,
-      },
-      config,
-    );
+    // Compare the main branch SHA with the develop branch SHA
+    log(`on-pull-merge: compare ${mainBranch} branch with ${developBranch} branch...`);
+    const compareStatus = await compareCommits({ base: developBranch, head: mainBranch }, config);
+    if (compareStatus === 'identical') {
+      log(`on-pull-merge: ${mainBranch} and ${developBranch} are identical, nothing to do`);
+      return;
+    }
+    log(`on-pull-merge: ${mainBranch} and ${developBranch} are different`, compareStatus);
+
+    // Try to reintegrate the main branch into the develop branch
+    try {
+      log(`on-pull-merge: reintegrate ${mainBranch} into ${developBranch}...`);
+      const merge = await mergeBranch(
+        {
+          base: developBranch,
+          head: mainBranch,
+        },
+        config,
+      );
+      log(`on-pull-merge: ${mainBranch} reintegrated into ${developBranch}`, merge);
+    } catch (err) {
+      error(
+        `on-pull-merge: could not reintegrate ${mainBranch} into ${developBranch}!`,
+        (err as Error)?.message,
+      );
+
+      // Create a pull request to reintegrate
+      log(`on-pull-merge: creating pull to reintegrate ${mainBranch} into ${developBranch}...`);
+      const pull = await createPullRequest(
+        {
+          title: `Reintegrate ${mainBranch} into ${developBranch}`,
+          body: `This pull request reintegrates the ${mainBranch} branch into the ${developBranch} branch.`,
+        },
+        {
+          base: developBranch,
+          head: mainBranch,
+        },
+        config,
+      );
+      log(`on-pull-merge: pull #${pull.number} created!`, pull);
+    }
 
     // If the pull request type is a hotfix, increment the latest release version
     if (pullRequestType === 'hotfix') {
+      log('on-pull-merge: incrementing version for hotfix...');
       version = clean(inc(latestRelease, 'prerelease', 'HOTFIX') || initialVersion);
 
       // Check if the version could be sanitized from the latest release
       if (!version) {
-        error('on-pull-merge: could not determine version from latest release. Exiting...');
-        return;
+        throw new Error('Could not determine version from latest release');
       }
+
+      // Log the incremented version
+      log(`on-pull-merge: incremented version for hotfix to v${version}`);
     }
 
     // If the pull request type is a release, increment the version from the release branch
     if (pullRequestType === 'release') {
+      log('on-pull-merge: incrementing version for release...');
       version = clean(pullRequest.head.ref.substring(config.releaseBranchPrefix.length));
 
       // Check if the version could be sanitized from the release branch
       if (!version) {
-        error('on-pull-merge: could not determine version from release branch. Exiting...');
-        return;
+        throw new Error('Could not determine version from release branch');
       }
+
+      // Log the incremented version
+      log(`on-pull-merge: incremented version for release to v${version}`);
     }
 
     // Check if the version is defined
     if (!version) {
-      error('on-pull-merge: could not determine version. Exiting...');
-      return;
+      throw new Error('Could not determine version');
     }
 
     // Create a new tag and release with the version
     log(`on-pull-merge: creating tag for v${version}...`);
-    await createTag(version, pullRequest.head.ref, config);
-    log(`on-pull-merge: tag for v${version} created!`);
+    const tag = await createTag(`v${version}`, pullRequest.head.sha, config);
+    log(`on-pull-merge: tag for v${version} created!`, tag);
+
+    // Create a tag ref for the version
+    log(`on-pull-merge: creating tag ref for v${version}...`);
+    await createRef(`refs/tags/v${version}`, pullRequest.head.sha, config);
+    log(`on-pull-merge: tag ref for v${version} created!`);
+
+    // Create a release for the version
+    log(`on-pull-merge: creating release for v${version}...`);
+    const release = await createRelease(`v${version}`, config);
+    log(`on-pull-merge: release for v${version} created!`, release);
   }
 };
 

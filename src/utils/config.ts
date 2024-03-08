@@ -1,6 +1,7 @@
 import { getInput } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 import { Context } from '@actions/github/lib/context';
+import { warn } from 'console';
 import semver, { type ReleaseType } from 'semver';
 
 import { error } from '@/utils/logger';
@@ -29,6 +30,8 @@ export type Config = {
   developBranch: string;
   releaseBranchPrefix: string;
   hotfixBranchPrefix: string;
+  releaseLabel: string;
+  releaseLabelColor: string;
 };
 
 /**
@@ -45,14 +48,19 @@ export const getConfig = (): Config => {
   }
 
   const octokit = getOctokit(githubToken);
-
-  // Fetch
   let versionIncrement = getInput('version_increment');
+  let releaseLabelColor = getInput('release_label_color');
 
   // Check if versionIncrement matches the type ReleaseType
   if (versionIncrement && !['major', 'minor', 'patch'].includes(versionIncrement)) {
     error(`version_increment must be one of 'major', 'minor', or 'patch'. Taking 'patch'`);
     versionIncrement = 'patch';
+  }
+
+  // Check if releaseLabelColor is a valid hex color
+  if (releaseLabelColor && !/^#[0-9A-F]{6}$/i.test(releaseLabelColor)) {
+    warn(`release_label_color must be a valid hex color. Taking '#0366d6'`);
+    releaseLabelColor = '#0366d6';
   }
 
   return {
@@ -65,5 +73,7 @@ export const getConfig = (): Config => {
     developBranch: getInput('develop_branch') || 'develop',
     releaseBranchPrefix: getInput('release_branch_prefix') || 'release/',
     hotfixBranchPrefix: getInput('hotfix_branch_prefix') || 'hotfix/',
+    releaseLabel: (getInput('release_label') || 'release').toLowerCase(),
+    releaseLabelColor: (getInput('release_label_color') || '#0366d6').toLowerCase(),
   };
 };
