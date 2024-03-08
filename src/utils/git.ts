@@ -15,27 +15,27 @@ interface Basehead {
 
 export const determinePullRequestType = (
   pullRequest: RestEndpointMethodTypes['pulls']['get']['response']['data'],
-  { mainBranch, developBranch, releaseBranchPrefix, hotfixBranchPrefix }: Config,
+  { mainBranch, developBranch, releaseBranchPrefix, hotfixBranchPrefix, strict }: Config,
 ): PullRequestType | undefined => {
   log('get-pull-request-type: determine pull request type...');
   const headBranch = pullRequest.head.ref;
   const baseBranch = pullRequest.base.ref;
 
-  const isHeadRelease = headBranch.startsWith(releaseBranchPrefix);
-  const isHeadHotfix = headBranch.startsWith(hotfixBranchPrefix);
-
   // Log the head and base branch
-  log('get-pull-request-type: head branch', headBranch);
-  log('get-pull-request-type: base branch', baseBranch);
+  log(`get-pull-request-type: head branch "${headBranch}"`);
+  log(`get-pull-request-type: base branch "${baseBranch}"`);
 
   // If the base branch is the main branch and the head branch is a release branch
-  if (baseBranch === mainBranch && isHeadRelease) {
+  if (baseBranch === mainBranch && headBranch.startsWith(releaseBranchPrefix)) {
     log('get-pull-request-type: pull request type is release');
     return 'release';
   }
 
   // If the base branch is the main branch and the head branch is a hotfix branch
-  if (baseBranch === mainBranch && isHeadHotfix) {
+  if (
+    (baseBranch === mainBranch && headBranch.startsWith(hotfixBranchPrefix) && !strict) ||
+    (baseBranch === mainBranch && !headBranch.startsWith(releaseBranchPrefix) && strict)
+  ) {
     log('get-pull-request-type: pull request type is hotfix');
     return 'hotfix';
   }
