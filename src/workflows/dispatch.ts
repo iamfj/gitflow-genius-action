@@ -57,18 +57,16 @@ export const onDispatch = async (config: Config) => {
   // Get latest release
   log(`on-dispatch: detecting latest release version...`);
   const previous = await previousRelease(config);
-  log(`on-dispatch: latest release version detected! (v${previousRelease})`);
+  log(`on-dispatch: latest release version detected! (v${previous})`);
 
   // Sanitize the latest release version
-  log(
-    `on-dispatch: increment release version from v${previousRelease} with ${versionIncrement} version`,
-  );
+  log(`on-dispatch: increment release version from v${previous} with ${versionIncrement} version`);
   const next = clean(inc(previous, versionIncrement) || initialVersion);
   if (!next) {
-    error(`on-dispatch: failed to increment version from v${previousRelease}`);
+    error(`on-dispatch: failed to increment version from v${previous}`);
     return;
   }
-  log(`on-dispatch: release version was incremented from v${previousRelease} to v${next})`);
+  log(`on-dispatch: release version was incremented from v${previous} to v${next})`);
 
   // Create release branch
   log(`on-dispatch: fetching develop branch sha`);
