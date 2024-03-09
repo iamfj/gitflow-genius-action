@@ -8,11 +8,15 @@ import {
   createRef,
   createRelease,
   createTag,
-  latestRelease,
+  getPull,
   mergeBranch,
+  previousRelease,
   pullType,
+  releaseNotes,
+  updatePull,
 } from '@/utils/git';
 import { error, log } from '@/utils/logger';
+import { notesMeta } from '@/utils/notes';
 
 /**
  * Handles the logic after a pull request is merged.
@@ -26,6 +30,11 @@ export const onPullRequestMerged = async (
   pullRequest: RestEndpointMethodTypes['pulls']['get']['response']['data'],
   config: Config,
 ) => {
+  // Get pull request
+  log('on-pull-merge: getting pull request...');
+  const pull = await getPull(pullRequest.number, config);
+  log('on-pull-merge: pull request retrieved!', pull);
+
   // Determine the type of the pull request
   log('on-pull-merge: determine pull request type...');
   const pullRequestType = pullType(
@@ -48,7 +57,7 @@ export const onPullRequestMerged = async (
 
   // Get the latest release and develop branch SHA
   const { initialVersion, mainBranch, developBranch } = config;
-  const latest = await latestRelease(config);
+  const latest = await previousRelease(config);
 
   // If the pull request type is a hotfix, reintegrate the main branch into the develop branch
   if (pullRequestType === 'hotfix' || pullRequestType === 'release') {
@@ -82,7 +91,7 @@ export const onPullRequestMerged = async (
 
       // Create a pull request to reintegrate
       log(`on-pull-merge: creating pull to reintegrate ${mainBranch} into ${developBranch}...`);
-      const pull = await createPull(
+      const reintegratePull = await createPull(
         {
           title: `Reintegrate ${mainBranch} into ${developBranch}`,
           body: `This pull request reintegrates the ${mainBranch} branch into the ${developBranch} branch.`,
@@ -93,7 +102,7 @@ export const onPullRequestMerged = async (
         },
         config,
       );
-      log(`on-pull-merge: pull #${pull.number} created!`, pull);
+      log(`on-pull-merge: pull #${pull.number} created!`, reintegratePull);
     }
 
     // If the pull request type is a hotfix, increment the latest release version
@@ -141,7 +150,7 @@ export const onPullRequestMerged = async (
 
     // Create a release for the version
     log(`on-pull-merge: creating release for v${version}...`);
-    const release = await createRelease(`v${version}`, config);
+    const release = await createRelease(`v${version}`, pull.body || '', config);
     log(`on-pull-merge: release for v${version} created!`, release);
   }
 };
@@ -150,5 +159,56 @@ export const onPullRequestSynchronize = async (
   pullRequest: RestEndpointMethodTypes['pulls']['get']['response']['data'],
   config: Config,
 ) => {
-  // ToDo: Implement the onPullRequestSynchronize workflow
+  // Get pull request
+  log('on-pull-sync: getting pull request...');
+  const pull = await getPull(pullRequest.number, config);
+  log('on-pull-sync: pull request retrieved!', pull);
+
+  // Determine the type of the pull request
+  log('on-pull-sync: determine pull request type...');
+  const type = pullType(
+    {
+      base: pullRequest.base.ref,
+      head: pullRequest.head.ref,
+    },
+    config,
+  );
+  log(`on-pull-sync: pull request type detected: ${type}`);
+
+  // If the pull request type is not a release, exit the workflow
+  if (type !== 'release') {
+    log('on-pull-sync: pull is not release branch, nothing to do');
+    return;
+  }
+
+  // Parse the meta from the pull request body
+  log('on-pull-sync: parsing pull request body...');
+  const meta = notesMeta(pull.body || '', config);
+  log('on-pull-sync: pull request body parsed!', meta);
+
+  // Extract previous version from the pull request body
+  log('on-pull-sync: extracting version from pull request body...');
+  const previous = meta.previous;
+  if (!previous) {
+    throw new Error('Could not determine previous version from pull request body');
+  }
+  log(`on-pull-sync: previous version extracted from pull request body: v${previous}`);
+
+  // Extract next version from the pull request body
+  log('on-pull-sync: extracting next version from pull request body...');
+  const next = meta.next;
+  if (!next) {
+    throw new Error('Could not determine next version from pull request body');
+  }
+  log(`on-pull-sync: next version extracted from pull request body: v${next}`);
+
+  // Update notes for release branch
+  log(`on-pull-sync: updating notes for v${next}...`);
+  const notes = await releaseNotes(next, previous, config);
+  log(`on-pull-sync: notes for v${next} updated!`, notes);
+
+  // Update pull request body with new notes
+  log(`on-pull-sync: updating pull request body for v${next}...`);
+  const updatedPull = await updatePull(pull.number, notes, config);
+  log(`on-pull-sync: pull request body for v${next} updated!`, updatedPull);
 };

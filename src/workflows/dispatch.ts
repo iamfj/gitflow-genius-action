@@ -11,9 +11,11 @@ import {
   developBranchSha,
   findLabel,
   findPulls,
-  latestRelease,
+  previousRelease,
+  releaseNotes,
 } from '@/utils/git';
 import { error, log } from '@/utils/logger';
+import { createNotes } from '@/utils/notes';
 
 /**
  * Handles dispatching logic for release workflows.
@@ -54,25 +56,25 @@ export const onDispatch = async (config: Config) => {
 
   // Get latest release
   log(`on-dispatch: detecting latest release version...`);
-  const latest = await latestRelease(config);
-  log(`on-dispatch: latest release version detected! (v${latestRelease})`);
+  const previous = await previousRelease(config);
+  log(`on-dispatch: latest release version detected! (v${previousRelease})`);
 
   // Sanitize the latest release version
   log(
-    `on-dispatch: increment release version from v${latestRelease} with ${versionIncrement} version`,
+    `on-dispatch: increment release version from v${previousRelease} with ${versionIncrement} version`,
   );
-  const version = clean(inc(latest, versionIncrement) || initialVersion);
-  if (!version) {
-    error(`on-dispatch: failed to increment version from v${latestRelease}`);
+  const next = clean(inc(previous, versionIncrement) || initialVersion);
+  if (!next) {
+    error(`on-dispatch: failed to increment version from v${previousRelease}`);
     return;
   }
-  log(`on-dispatch: release version was incremented from v${latestRelease} to v${version})`);
+  log(`on-dispatch: release version was incremented from v${previousRelease} to v${next})`);
 
   // Create release branch
   log(`on-dispatch: fetching develop branch sha`);
   const developSha = await developBranchSha(config);
-  log(`on-dispatch: creating release branch for v${version} from ${developBranch} (${developSha})`);
-  const releaseBranch = `${releaseBranchPrefix}${version}`;
+  log(`on-dispatch: creating release branch for v${next} from ${developBranch} (${developSha})`);
+  const releaseBranch = `${releaseBranchPrefix}${next}`;
   log(`on-dispatch: release branch name generated ${releaseBranch}`);
 
   // Check if release branch already exists
@@ -87,7 +89,7 @@ export const onDispatch = async (config: Config) => {
       `on-dispatch: creating release branch ${releaseBranch} from ${developBranch} (${developSha})`,
     );
     const ref = await createRef(`refs/heads/${releaseBranch}`, developSha, config);
-    log(`on-dispatch: release branch for v${version} created! (${releaseBranch})`, ref);
+    log(`on-dispatch: release branch for v${next} created! (${releaseBranch})`, ref);
   }
 
   // List all pull requests with head releaseBranch and base mainBranch
@@ -100,16 +102,34 @@ export const onDispatch = async (config: Config) => {
     pull = pulls[0];
     log(`on-dispatch: release pull request #${pull.number} already exists! Skipped!`, pull);
   } else {
-    log(`on-dispatch: no release pull request for v${version} found!`);
+    log(`on-dispatch: no release pull request for v${next} found!`);
   }
 
-  // Create release pull request
+  // If pull request is not available, create one
   if (!pull) {
+    // Generate release notes
+    log(`on-dispatch: generating release notes for v${next}...`);
+    const notes = await releaseNotes(next, previous, config);
+    log(`on-dispatch: release notes for v${next} generated!`, notes);
+
+    // Pre process release notes
+    log(`on-dispatch: pre-processing release notes for v${next}...`);
+    const body = createNotes(
+      notes.body,
+      {
+        previous,
+        next,
+      },
+      config,
+    );
+    log(`on-dispatch: release notes for v${next} pre-processed!`, body);
+
+    // Create release pull request
     log(`on-dispatch: creating pull request from ${developBranch} to ${mainBranch}`);
     pull = await createPull(
       {
-        title: `Release v${version}`,
-        body: `Release v${version}`, // ToDo: Add release notes
+        title: `Release v${next}`,
+        body,
       },
       {
         head: releaseBranch,
@@ -117,12 +137,12 @@ export const onDispatch = async (config: Config) => {
       },
       config,
     );
-    log(`on-dispatch: release pull request for v${version} created!`, pull);
+    log(`on-dispatch: release pull request for v${next} created!`, pull);
   }
 
   // Check if pull request is available
   if (!pull) {
-    throw new Error(`release pull request for v${version} not found!`);
+    throw new Error(`release pull request for v${next} not found!`);
   }
 
   // Add release label to existing pull request
@@ -135,5 +155,5 @@ export const onDispatch = async (config: Config) => {
   }
 
   // Log dispatch completion
-  log(`on-dispatch: release process completed for v${version}`);
+  log(`on-dispatch: release process completed for v${next}`);
 };

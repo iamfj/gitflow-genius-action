@@ -6,6 +6,8 @@ import semver, { type ReleaseType } from 'semver';
 
 import { error } from '@/utils/logger';
 
+import * as pack from '../../package.json';
+
 /**
  * Type definition for configuration used in the GitHub action.
  *
@@ -21,6 +23,10 @@ import { error } from '@/utils/logger';
  * @property {string} hotfixBranchPrefix - The prefix for hotfix branches.
  */
 export type Config = {
+  action: {
+    name: string;
+    url: string;
+  };
   context: Context;
   octokit: ReturnType<typeof getOctokit>;
   strict: boolean;
@@ -64,6 +70,10 @@ export const getConfig = (): Config => {
   }
 
   return {
+    action: {
+      name: pack.name,
+      url: pack.repository.url,
+    },
     octokit,
     context,
     strict: (getInput('strict') || 'false') === 'true',

@@ -53,7 +53,7 @@ export const pullType = (
 
 export const compareCommits = async (
   { base, head }: Basehead,
-  { octokit, context }: Config,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
 ): Promise<
   RestEndpointMethodTypes['repos']['compareCommitsWithBasehead']['response']['data']['status']
 > => {
@@ -67,7 +67,7 @@ export const compareCommits = async (
 
 export const mergeBranch = async (
   { base, head }: Basehead,
-  { octokit, context }: Config,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
 ): Promise<RestEndpointMethodTypes['repos']['merge']['response']['data']> => {
   const { data } = await octokit.rest.repos.merge({
     ...context.repo,
@@ -81,7 +81,7 @@ export const mergeBranch = async (
 export const createTag = async (
   version: string,
   sha: string,
-  { octokit, context }: Config,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
 ): Promise<RestEndpointMethodTypes['git']['createTag']['response']['data']> => {
   const { data } = await octokit.rest.git.createTag({
     ...context.repo,
@@ -94,7 +94,11 @@ export const createTag = async (
   return data;
 };
 
-export const developBranchSha = async ({ octokit, context, developBranch }: Config) => {
+export const developBranchSha = async ({
+  octokit,
+  context,
+  developBranch,
+}: Pick<Config, 'octokit' | 'context' | 'developBranch'>) => {
   const { data } = await octokit.rest.repos.getBranch({
     ...context.repo,
     branch: developBranch,
@@ -103,7 +107,11 @@ export const developBranchSha = async ({ octokit, context, developBranch }: Conf
   return data.commit.sha;
 };
 
-export const latestRelease = async ({ octokit, context, initialVersion }: Config) => {
+export const previousRelease = async ({
+  octokit,
+  context,
+  initialVersion,
+}: Pick<Config, 'octokit' | 'context' | 'initialVersion'>) => {
   log('get-release: fetching latest release from github');
 
   const { data } = await octokit.rest.repos
@@ -129,7 +137,7 @@ export const latestRelease = async ({ octokit, context, initialVersion }: Config
 
 export const findLabel = async (
   label: string,
-  { octokit, context }: Config,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
 ): Promise<
   ValuesType<RestEndpointMethodTypes['issues']['listLabelsForRepo']['response']['data']> | undefined
 > => {
@@ -141,11 +149,15 @@ export const findLabel = async (
   return data.find((l) => l.name === label);
 };
 
-export const createLabel = async (label: string, color: string, { octokit, context }: Config) => {
+export const createLabel = async (
+  name: string,
+  color: string,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
+) => {
   const { data } = await octokit.rest.issues.createLabel({
     ...context.repo,
-    name: 'release',
-    color: '0366d6',
+    name,
+    color,
   });
 
   return data;
@@ -153,7 +165,7 @@ export const createLabel = async (label: string, color: string, { octokit, conte
 
 export const branchExists = async (
   branch: string,
-  { octokit, context }: Config,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
 ): Promise<RestEndpointMethodTypes['repos']['getBranch']['response']['data'] | undefined> => {
   try {
     const { data } = await octokit.rest.repos.getBranch({
@@ -170,7 +182,7 @@ export const branchExists = async (
 export const createRef = async (
   ref: string,
   sha: Basehead['base'],
-  { octokit, context }: Config,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
 ): Promise<RestEndpointMethodTypes['git']['createRef']['response']['data']> => {
   const { data } = await octokit.rest.git.createRef({
     ...context.repo,
@@ -181,10 +193,16 @@ export const createRef = async (
   return data;
 };
 
-export const createRelease = async (tag: string, { octokit, context }: Config) => {
+export const createRelease = async (
+  tag: string,
+  body: string,
+  { octokit, context, developBranch }: Pick<Config, 'octokit' | 'context' | 'developBranch'>,
+) => {
   const { data } = await octokit.rest.repos.createRelease({
     ...context.repo,
+    target_commitish: developBranch,
     tag_name: tag,
+    body,
   });
 
   return data;
@@ -192,7 +210,7 @@ export const createRelease = async (tag: string, { octokit, context }: Config) =
 
 export const findPulls = async (
   { base, head }: Basehead,
-  { octokit, context }: Config,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
 ): Promise<RestEndpointMethodTypes['pulls']['list']['response']['data']> => {
   const { data } = await octokit.rest.pulls.list({
     ...context.repo,
@@ -206,7 +224,7 @@ export const findPulls = async (
 export const addLabels = async (
   labels: string[],
   issueNumber: RestEndpointMethodTypes['issues']['addLabels']['parameters']['issue_number'],
-  { octokit, context }: Config,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
 ): Promise<RestEndpointMethodTypes['issues']['addLabels']['response']['data']> => {
   const { data } = await octokit.rest.issues.addLabels({
     ...context.repo,
@@ -220,7 +238,7 @@ export const addLabels = async (
 export const createPull = async (
   params: Pick<RestEndpointMethodTypes['pulls']['create']['parameters'], 'title' | 'body'>,
   { base, head }: Basehead,
-  { octokit, context }: Config,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
 ): Promise<RestEndpointMethodTypes['pulls']['create']['response']['data']> => {
   const { data } = await octokit.rest.pulls.create({
     ...context.repo,
@@ -234,11 +252,40 @@ export const createPull = async (
 
 export const getPull = async (
   pull_number: number,
-  { octokit, context }: Config,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
 ): Promise<RestEndpointMethodTypes['pulls']['get']['response']['data']> => {
   const { data } = await octokit.rest.pulls.get({
     ...context.repo,
     pull_number,
+  });
+
+  return data;
+};
+
+export const updatePull = async (
+  pullNumber: number,
+  params: Pick<RestEndpointMethodTypes['pulls']['update']['parameters'], 'body'>,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
+) => {
+  const { data } = await octokit.rest.pulls.update({
+    ...context.repo,
+    ...params,
+    pull_number: pullNumber,
+  });
+
+  return data;
+};
+
+export const releaseNotes = async (
+  nextTag: string,
+  previousTag: string,
+  { octokit, context, developBranch }: Pick<Config, 'octokit' | 'context' | 'developBranch'>,
+) => {
+  const { data } = await octokit.rest.repos.generateReleaseNotes({
+    ...context.repo,
+    tag_name: nextTag,
+    target_commitish: developBranch,
+    previous_tag_name: previousTag,
   });
 
   return data;

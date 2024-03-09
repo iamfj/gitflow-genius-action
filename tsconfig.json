@@ -9,6 +9,7 @@
     "strict": true,
     "allowJs": false,
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "paths": {
       "@/*": ["./*"],
     },
