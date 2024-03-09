@@ -72,7 +72,7 @@ export const getConfig = (): Config => {
   return {
     action: {
       name: pack.name,
-      url: pack.repository.url,
+      url: pack.homepage,
     },
     octokit,
     context,

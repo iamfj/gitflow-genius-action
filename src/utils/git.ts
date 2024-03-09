@@ -54,15 +54,13 @@ export const pullType = (
 export const compareCommits = async (
   { base, head }: Basehead,
   { octokit, context }: Pick<Config, 'octokit' | 'context'>,
-): Promise<
-  RestEndpointMethodTypes['repos']['compareCommitsWithBasehead']['response']['data']['status']
-> => {
+): Promise<RestEndpointMethodTypes['repos']['compareCommitsWithBasehead']['response']['data']> => {
   const { data } = await octokit.rest.repos.compareCommitsWithBasehead({
     ...context.repo,
     basehead: `${base}...${head}`,
   });
 
-  return data.status;
+  return data;
 };
 
 export const mergeBranch = async (
@@ -94,17 +92,16 @@ export const createTag = async (
   return data;
 };
 
-export const developBranchSha = async ({
-  octokit,
-  context,
-  developBranch,
-}: Pick<Config, 'octokit' | 'context' | 'developBranch'>) => {
+export const getBranch = async (
+  branch: string,
+  { octokit, context }: Pick<Config, 'octokit' | 'context'>,
+) => {
   const { data } = await octokit.rest.repos.getBranch({
     ...context.repo,
-    branch: developBranch,
+    branch,
   });
 
-  return data.commit.sha;
+  return data;
 };
 
 export const currentRelease = async ({
@@ -197,7 +194,7 @@ export const createRelease = async (
   tag: string,
   body: string,
   { octokit, context, developBranch }: Pick<Config, 'octokit' | 'context' | 'developBranch'>,
-) => {
+): Promise<RestEndpointMethodTypes['repos']['createRelease']['response']['data']> => {
   const { data } = await octokit.rest.repos.createRelease({
     ...context.repo,
     target_commitish: developBranch,
@@ -271,21 +268,6 @@ export const updatePull = async (
     ...context.repo,
     ...params,
     pull_number: pullNumber,
-  });
-
-  return data;
-};
-
-export const releaseNotes = async (
-  nextTag: string,
-  previousTag: string,
-  { octokit, context, developBranch }: Pick<Config, 'octokit' | 'context' | 'developBranch'>,
-) => {
-  const { data } = await octokit.rest.repos.generateReleaseNotes({
-    ...context.repo,
-    tag_name: nextTag,
-    target_commitish: developBranch,
-    previous_tag_name: previousTag,
   });
 
   return data;

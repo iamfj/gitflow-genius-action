@@ -9,14 +9,14 @@ import {
   createRelease,
   createTag,
   currentRelease,
+  getBranch,
   getPull,
   mergeBranch,
   pullType,
-  releaseNotes,
   updatePull,
 } from '@/utils/git';
 import { error, log } from '@/utils/logger';
-import { notesMeta } from '@/utils/notes';
+import { notesMeta, updateNotes } from '@/utils/notes';
 
 /**
  * Handles the logic after a pull request is merged.
@@ -65,12 +65,12 @@ export const onPullRequestMerged = async (
 
     // Compare the main branch SHA with the develop branch SHA
     log(`on-pull-merge: compare ${mainBranch} branch with ${developBranch} branch...`);
-    const compareStatus = await compareCommits({ base: developBranch, head: mainBranch }, config);
-    if (compareStatus === 'identical') {
+    const compare = await compareCommits({ base: developBranch, head: mainBranch }, config);
+    if (compare.status === 'identical') {
       log(`on-pull-merge: ${mainBranch} and ${developBranch} are identical, nothing to do`);
       return;
     }
-    log(`on-pull-merge: ${mainBranch} and ${developBranch} are different`, compareStatus);
+    log(`on-pull-merge: ${mainBranch} and ${developBranch} are different`, compare);
 
     // Try to reintegrate the main branch into the develop branch
     try {
@@ -156,20 +156,17 @@ export const onPullRequestMerged = async (
 };
 
 export const onPullRequestSynchronize = async (
-  pullRequest: RestEndpointMethodTypes['pulls']['get']['response']['data'],
+  pull: RestEndpointMethodTypes['pulls']['get']['response']['data'],
   config: Config,
 ) => {
-  // Get pull request
-  log('on-pull-sync: getting pull request...');
-  const pull = await getPull(pullRequest.number, config);
-  log('on-pull-sync: pull request retrieved!', pull);
+  const { mainBranch } = config;
 
   // Determine the type of the pull request
   log('on-pull-sync: determine pull request type...');
   const type = pullType(
     {
-      base: pullRequest.base.ref,
-      head: pullRequest.head.ref,
+      base: pull.base.ref,
+      head: pull.head.ref,
     },
     config,
   );
@@ -188,11 +185,11 @@ export const onPullRequestSynchronize = async (
 
   // Extract previous version from the pull request body
   log('on-pull-sync: extracting version from pull request body...');
-  const previous = meta.previous;
-  if (!previous) {
-    throw new Error('Could not determine previous version from pull request body');
+  const current = meta.current;
+  if (!current) {
+    throw new Error('Could not determine current version from pull request body');
   }
-  log(`on-pull-sync: previous version extracted from pull request body: v${previous}`);
+  log(`on-pull-sync: previous version extracted from pull request body: v${current}`);
 
   // Extract next version from the pull request body
   log('on-pull-sync: extracting next version from pull request body...');
@@ -202,13 +199,29 @@ export const onPullRequestSynchronize = async (
   }
   log(`on-pull-sync: next version extracted from pull request body: v${next}`);
 
-  // Update notes for release branch
-  log(`on-pull-sync: updating notes for v${next}...`);
-  const notes = await releaseNotes(next, previous, config);
-  log(`on-pull-sync: notes for v${next} updated!`, notes);
+  // Compare head with base branch
+  log('on-pull-sync: comparing head with base branch...');
+  const commits = await compareCommits(
+    {
+      base: pull.base.sha,
+      head: pull.head.sha,
+    },
+    config,
+  );
+  log('on-pull-sync: head compared with base branch!', commits);
+
+  // Fetching main branch
+  log(`on-dispatch: fetching ${mainBranch} branch...`);
+  const main = await getBranch(mainBranch, config);
+  log(`on-dispatch: ${mainBranch} branch fetched! (${main.commit.sha})`);
+
+  // Update notes for previous version
+  log(`on-pull-sync: updating notes for v${current}...`);
+  const notes = updateNotes(commits, pull.body, config);
+  log(`on-pull-sync: notes for v${current} updated!`);
 
   // Update pull request body with new notes
   log(`on-pull-sync: updating pull request body for v${next}...`);
-  const updatedPull = await updatePull(pull.number, notes, config);
+  const updatedPull = await updatePull(pull.number, { body: notes }, config);
   log(`on-pull-sync: pull request body for v${next} updated!`, updatedPull);
 };

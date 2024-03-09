@@ -50,10 +50,19 @@ const main = async (config: Config) => {
     assert(github.context.payload.pull_request, 'pull request is not defined');
 
     // Fetch pull request data
-    const pullRequest = await getPull(github.context.payload.pull_request.number, config);
+    const pull = await getPull(github.context.payload.pull_request.number, config);
+
+    // Only synchronize release pull reuqest based on the main branch
+    if (
+      !pull.head.ref.startsWith(config.releaseBranchPrefix) ||
+      pull.base.ref !== config.mainBranch
+    ) {
+      log('pull is not a release pull request. Exiting...');
+      return;
+    }
 
     // Execute the onPullRequestSynchronize workflow
-    return onPullRequestSynchronize(pullRequest, config);
+    return onPullRequestSynchronize(pull, config);
   }
 
   // Run the onDispatch workflow when a workflow_dispatch event is triggered

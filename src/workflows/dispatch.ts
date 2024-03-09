@@ -5,14 +5,14 @@ import { Config } from '@/utils/config';
 import {
   addLabels,
   branchExists,
+  compareCommits,
   createLabel,
   createPull,
   createRef,
   currentRelease,
-  developBranchSha,
   findLabel,
   findPulls,
-  releaseNotes,
+  getBranch,
 } from '@/utils/git';
 import { log } from '@/utils/logger';
 import { createNotes } from '@/utils/notes';
@@ -74,10 +74,18 @@ export const onDispatch = async (config: Config) => {
   }
   log(`on-dispatch: release version was incremented from v${current} to v${next})`);
 
+  // Fetching main branch
+  log(`on-dispatch: fetching ${mainBranch} branch...`);
+  const main = await getBranch(mainBranch, config);
+  log(`on-dispatch: ${mainBranch} branch fetched! (${main.commit.sha})`);
+
+  // Fetching develop branch
+  log(`on-dispatch: fetching ${developBranch} branch...`);
+  const develop = await getBranch(developBranch, config);
+  log(`on-dispatch: ${developBranch} branch fetched! (${develop.commit.sha})`);
+
   // Create release branch
-  log(`on-dispatch: fetching develop branch sha`);
-  const developSha = await developBranchSha(config);
-  log(`on-dispatch: creating release branch for v${next} from ${developBranch} (${developSha})`);
+  log(`on-dispatch: creating branch for v${next} from ${developBranch}`);
   const releaseBranch = `${releaseBranchPrefix}${next}`;
   log(`on-dispatch: release branch name generated ${releaseBranch}`);
 
@@ -89,8 +97,8 @@ export const onDispatch = async (config: Config) => {
   } else {
     // Create release branch
     log(`on-dispatch: branch ${releaseBranch} does not exist.`);
-    log(`on-dispatch: creating branch ${releaseBranch} from ${developBranch} (${developSha})`);
-    const ref = await createRef(`refs/heads/${releaseBranch}`, developSha, config);
+    log(`on-dispatch: creating branch ${releaseBranch} from ${developBranch} (${develop})`);
+    const ref = await createRef(`refs/heads/${releaseBranch}`, develop.commit.sha, config);
     log(`on-dispatch: branch for v${next} created! (${releaseBranch})`, ref);
   }
 
@@ -109,22 +117,28 @@ export const onDispatch = async (config: Config) => {
 
   // If pull request is not available, create one
   if (!pull) {
-    // Generate release notes
-    log(`on-dispatch: generating release notes for v${next}...`);
-    const notes = await releaseNotes(next, current, config);
-    log(`on-dispatch: release notes for v${next} generated!`, notes);
+    // Compare tags refs
+    log(`on-dispatch: comparing tag refs for v${next} and v${current}...`);
+    const commits = await compareCommits(
+      {
+        base: main.commit.sha,
+        head: develop.commit.sha,
+      },
+      config,
+    );
+    log(`on-dispatch: tag refs for v${next} and v${current} compared!`, commits);
 
     // Pre process release notes
-    log(`on-dispatch: pre-processing release notes for v${next}...`);
+    log(`on-dispatch: create release notes for v${next}...`);
     const body = createNotes(
-      notes.body,
+      commits,
       {
-        previous: current,
+        current,
         next,
       },
       config,
     );
-    log(`on-dispatch: release notes for v${next} pre-processed!`, body);
+    log(`on-dispatch: release notes for v${next} created!`, body);
 
     // Create release pull request
     log(`on-dispatch: creating pull request from ${developBranch} to ${mainBranch}`);
