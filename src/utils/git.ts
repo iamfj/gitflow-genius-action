@@ -107,7 +107,7 @@ export const developBranchSha = async ({
   return data.commit.sha;
 };
 
-export const previousRelease = async ({
+export const currentRelease = async ({
   octokit,
   context,
   initialVersion,

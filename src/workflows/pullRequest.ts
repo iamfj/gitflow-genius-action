@@ -8,9 +8,9 @@ import {
   createRef,
   createRelease,
   createTag,
+  currentRelease,
   getPull,
   mergeBranch,
-  previousRelease,
   pullType,
   releaseNotes,
   updatePull,
@@ -57,7 +57,7 @@ export const onPullRequestMerged = async (
 
   // Get the latest release and develop branch SHA
   const { initialVersion, mainBranch, developBranch } = config;
-  const latest = await previousRelease(config);
+  const latest = await currentRelease(config);
 
   // If the pull request type is a hotfix, reintegrate the main branch into the develop branch
   if (pullRequestType === 'hotfix' || pullRequestType === 'release') {

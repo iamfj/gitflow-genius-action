@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { clean, inc } from 'semver';
+import { clean, coerce, inc } from 'semver';
 
 import { Config } from '@/utils/config';
 import {
@@ -8,13 +8,13 @@ import {
   createLabel,
   createPull,
   createRef,
+  currentRelease,
   developBranchSha,
   findLabel,
   findPulls,
-  previousRelease,
   releaseNotes,
 } from '@/utils/git';
-import { error, log } from '@/utils/logger';
+import { log } from '@/utils/logger';
 import { createNotes } from '@/utils/notes';
 
 /**
@@ -31,7 +31,6 @@ import { createNotes } from '@/utils/notes';
 export const onDispatch = async (config: Config) => {
   const {
     versionIncrement,
-    initialVersion,
     developBranch,
     mainBranch,
     releaseBranchPrefix,
@@ -55,18 +54,25 @@ export const onDispatch = async (config: Config) => {
   const releaseLabelName = release.name;
 
   // Get latest release
-  log(`on-dispatch: detecting latest release version...`);
-  const previous = await previousRelease(config);
-  log(`on-dispatch: latest release version detected! (v${previous})`);
+  log(`on-dispatch: detecting current release version...`);
+  const current = await currentRelease(config);
+  log(`on-dispatch: current release version detected! (v${current})`);
 
   // Sanitize the latest release version
-  log(`on-dispatch: increment release version from v${previous} with ${versionIncrement} version`);
-  const next = clean(inc(previous, versionIncrement) || initialVersion);
-  if (!next) {
-    error(`on-dispatch: failed to increment version from v${previous}`);
-    return;
+  log(`on-dispatch: sanitizing release ${current} version...`);
+  const sanitized = coerce(clean(current));
+  if (!sanitized) {
+    throw new Error(`failed to sanitize version from ${current}`);
   }
-  log(`on-dispatch: release version was incremented from v${previous} to v${next})`);
+  log(`on-dispatch: release version sanitized! (v${sanitized.version})`);
+
+  // Sanitize the latest release version
+  log(`on-dispatch: increment release version from v${current} with ${versionIncrement} version`);
+  const next = inc(sanitized, versionIncrement);
+  if (!next) {
+    throw new Error(`failed to increment version from v${current}`);
+  }
+  log(`on-dispatch: release version was incremented from v${current} to v${next})`);
 
   // Create release branch
   log(`on-dispatch: fetching develop branch sha`);
@@ -76,18 +82,16 @@ export const onDispatch = async (config: Config) => {
   log(`on-dispatch: release branch name generated ${releaseBranch}`);
 
   // Check if release branch already exists
-  log(`on-dispatch: checking if release branch ${releaseBranch} exists...`);
+  log(`on-dispatch: checking if branch ${releaseBranch} exists...`);
   const exists = await branchExists(releaseBranch, config);
   if (exists) {
-    log(`on-dispatch: release branch ${releaseBranch} already exists. Skipped!`, exists);
+    log(`on-dispatch: branch ${releaseBranch} already exists. Skipped!`, exists);
   } else {
     // Create release branch
-    log(`on-dispatch: release branch ${releaseBranch} does not exist.`);
-    log(
-      `on-dispatch: creating release branch ${releaseBranch} from ${developBranch} (${developSha})`,
-    );
+    log(`on-dispatch: branch ${releaseBranch} does not exist.`);
+    log(`on-dispatch: creating branch ${releaseBranch} from ${developBranch} (${developSha})`);
     const ref = await createRef(`refs/heads/${releaseBranch}`, developSha, config);
-    log(`on-dispatch: release branch for v${next} created! (${releaseBranch})`, ref);
+    log(`on-dispatch: branch for v${next} created! (${releaseBranch})`, ref);
   }
 
   // List all pull requests with head releaseBranch and base mainBranch
@@ -107,7 +111,7 @@ export const onDispatch = async (config: Config) => {
   if (!pull) {
     // Generate release notes
     log(`on-dispatch: generating release notes for v${next}...`);
-    const notes = await releaseNotes(next, previous, config);
+    const notes = await releaseNotes(next, current, config);
     log(`on-dispatch: release notes for v${next} generated!`, notes);
 
     // Pre process release notes
@@ -115,7 +119,7 @@ export const onDispatch = async (config: Config) => {
     const body = createNotes(
       notes.body,
       {
-        previous,
+        previous: current,
         next,
       },
       config,
@@ -145,7 +149,7 @@ export const onDispatch = async (config: Config) => {
 
   // Add release label to existing pull request
   if (pull.labels.find((pullLabel) => pullLabel.name === releaseLabelName)) {
-    log(`on-dispatch: ${releaseLabelName} label exists for pull request #${pull.number}`);
+    log(`on-dispatch: ${releaseLabelName} label exists for pull request #${pull.number}. Skipped!`);
   } else {
     log(`on-dispatch: adding ${releaseLabelName} label to pull request #${pull.number}`);
     const label = await addLabels([releaseLabelName], pull.number, config);
