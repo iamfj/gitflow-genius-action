@@ -1,3 +1,5 @@
+import * as pack from '../../package.json';
+
 /**
  * Formats input messages into a single string with a specific prefix.
  * This function accepts multiple messages which can be either strings or objects.
@@ -18,7 +20,7 @@ function format(...messages: (string | object)[]): string {
     return message;
   });
 
-  return `gitflow-genius-action: ${formattedMessages.join(' ')}`;
+  return `${pack.name.toLocaleLowerCase()}: ${formattedMessages.join(' ')}`;
 }
 
 /**

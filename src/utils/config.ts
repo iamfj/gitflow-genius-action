@@ -1,10 +1,9 @@
 import { getInput } from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 import { Context } from '@actions/github/lib/context';
-import { warn } from 'console';
-import semver, { type ReleaseType } from 'semver';
+import { type ReleaseType, clean } from 'semver';
 
-import { error } from '@/utils/logger';
+import { error, warn } from '@/utils/logger';
 
 import * as pack from '../../package.json';
 
@@ -54,8 +53,8 @@ export const getConfig = (): Config => {
   }
 
   const octokit = getOctokit(githubToken);
-  let versionIncrement = getInput('version_increment');
-  let releaseLabelColor = getInput('release_label_color');
+  let versionIncrement = getInput('version_increment') || 'patch';
+  let releaseLabelColor = getInput('release_label_color') || '#0366d6';
 
   // Check if versionIncrement matches the type ReleaseType
   if (versionIncrement && !['major', 'minor', 'patch'].includes(versionIncrement)) {
@@ -77,13 +76,13 @@ export const getConfig = (): Config => {
     octokit,
     context,
     strict: (getInput('strict') || 'false') === 'true',
-    initialVersion: semver.clean(getInput('initial_version')) || '0.1.0',
+    initialVersion: clean(getInput('initial_version') || '0.1.0')!,
     versionIncrement: versionIncrement as Extract<ReleaseType, 'major' | 'minor' | 'patch'>,
     mainBranch: getInput('main_branch') || 'main',
     developBranch: getInput('develop_branch') || 'develop',
     releaseBranchPrefix: getInput('release_branch_prefix') || 'release/',
     hotfixBranchPrefix: getInput('hotfix_branch_prefix') || 'hotfix/',
     releaseLabel: (getInput('release_label') || 'release').toLowerCase(),
-    releaseLabelColor: (getInput('release_label_color') || '#0366d6').toLowerCase(),
+    releaseLabelColor: releaseLabelColor.toLowerCase(),
   };
 };

@@ -1,32 +1,32 @@
 {
   "env": {
     "es2021": true,
-    "node": true,
+    "node": true
   },
   "plugins": ["@typescript-eslint", "import", "prettier"],
   "extends": [
     "airbnb-typescript/base",
     "prettier",
     "plugin:@typescript-eslint/recommended",
-    "plugin:import/typescript",
+    "plugin:import/typescript"
   ],
   "parserOptions": {
     "parser": "@typescript-eslint/parser",
     "ecmaVersion": "latest",
     "sourceType": "module",
-    "project": "./tsconfig.json",
+    "project": "./tsconfig.json"
   },
   "settings": {
     "import/parsers": {
-      "@typescript-eslint/parser": [".ts"],
+      "@typescript-eslint/parser": [".ts"]
     },
     "import/resolver": {
       "typescript": {
         "alwaysTryTypes": true,
         "project": "<root>/tsconfig.json",
-        "extensions": [".ts", ".tsx", ".d.ts"],
-      },
-    },
+        "extensions": [".ts", ".tsx", ".d.ts"]
+      }
+    }
   },
   "rules": {
     "prettier/prettier": "error",
@@ -35,9 +35,26 @@
     "import/no-extraneous-dependencies": [
       "error",
       {
-        "devDependencies": ["**/*.config.*", "**/*.test.*", "**/*.spec.*"],
-      },
+        "devDependencies": ["**/*.config.*", "**/*.test.*", "**/*.spec.*"]
+      }
     ],
+    "@typescript-eslint/naming-convention": [
+      "error",
+      {
+        "selector": "default",
+        "format": ["strictCamelCase", "snake_case", "UPPER_CASE"],
+        "leadingUnderscore": "allow"
+      },
+      {
+        "selector": "variable",
+        "format": ["strictCamelCase", "UPPER_CASE"],
+        "leadingUnderscore": "allow"
+      },
+      {
+        "selector": "typeLike",
+        "format": ["StrictPascalCase"]
+      }
+    ]
   },
-  "ignorePatterns": ["dist/**", "node_modules/**", "coverage/**", "*.config.*"],
+  "ignorePatterns": ["dist/**", "node_modules/**", "coverage/**", "*.config.*"]
 }
