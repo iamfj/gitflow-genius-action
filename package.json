@@ -15,7 +15,7 @@
   },
   "scripts": {
     "dev": "tsx src/index.ts",
-    "test": "vitest",
+    "test": "vitest --coverage",
     "lint": "eslint --ignore-path .gitignore --ext .js,.ts src",
     "fix": "eslint --ignore-path .gitignore --ext .js,.ts src --fix",
     "build": "rimraf ./dist && ncc build src/index.ts -o dist --minify --license licenses.txt",
